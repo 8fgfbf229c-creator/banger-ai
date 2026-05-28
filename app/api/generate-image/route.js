@@ -6,7 +6,7 @@ export async function POST(req) {
   try {
     const { imagePrompt, photoBase64, photoMime } = await req.json();
 
-    const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash-exp-image-generation" });
+    const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash-preview-image-generation" });
 
     const fullPrompt = photoBase64
       ? `You are an image editor. Take this photo and modify the scene exactly as described. Keep the main subject (the person) exactly as they are. Only add or change what is described. Scene to create: ${imagePrompt}`
