@@ -1,48 +1,47 @@
-import * as fal from "@fal-ai/client";
+import { GoogleGenerativeAI } from "@google/generative-ai";
 
-fal.config({ credentials: process.env.FAL_KEY });
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
 export async function POST(req) {
   try {
     const { imagePrompt, photoBase64, photoMime } = await req.json();
 
-    // If user uploaded a photo, use image-to-image (edit the real photo)
-    // Otherwise generate from scratch
-    if (photoBase64) {
-      // Use fal.ai flux-general with image input to add elements to the photo
-      const result = await fal.subscribe("fal-ai/flux/dev/image-to-image", {
-        input: {
-          prompt: imagePrompt,
-          image_url: `data:${photoMime || "image/jpeg"};base64,${photoBase64}`,
-          strength: 0.75, // how much to change (0 = keep original, 1 = ignore original)
-          num_inference_steps: 28,
-          guidance_scale: 3.5,
-          num_images: 1,
-          image_size: "portrait_4_3",
-        },
-      });
+    const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash-exp-image-generation" });
 
-      const imageUrl = result.data?.images?.[0]?.url;
-      if (!imageUrl) throw new Error("No image returned from fal.ai");
+    const fullPrompt = photoBase64
+      ? `You are an image editor. Take this photo and modify the scene exactly as described. Keep the main subject (the person) exactly as they are. Only add or change what is described. Scene to create: ${imagePrompt}`
+      : `Create a photorealistic image: ${imagePrompt}. Cinematic lighting, high quality, realistic people.`;
 
-      return Response.json({ success: true, imageUrl });
-    } else {
-      // Generate from scratch
-      const result = await fal.subscribe("fal-ai/flux/dev", {
-        input: {
-          prompt: imagePrompt,
-          num_inference_steps: 28,
-          guidance_scale: 3.5,
-          num_images: 1,
-          image_size: "portrait_4_3",
-        },
-      });
+    const contents = photoBase64
+      ? [
+          {
+            role: "user",
+            parts: [
+              { text: fullPrompt },
+              { inlineData: { mimeType: photoMime || "image/jpeg", data: photoBase64 } },
+            ],
+          },
+        ]
+      : [{ role: "user", parts: [{ text: fullPrompt }] }];
 
-      const imageUrl = result.data?.images?.[0]?.url;
-      if (!imageUrl) throw new Error("No image returned from fal.ai");
+    const result = await model.generateContent(
+      photoBase64
+        ? [fullPrompt, { inlineData: { mimeType: photoMime || "image/jpeg", data: photoBase64 } }]
+        : [fullPrompt],
+      { generationConfig: { responseModalities: ["image", "text"] } }
+    );
 
-      return Response.json({ success: true, imageUrl });
+    const response = result.response;
+    const parts = response.candidates?.[0]?.content?.parts || [];
+
+    for (const part of parts) {
+      if (part.inlineData?.mimeType?.startsWith("image/")) {
+        const imageUrl = `data:${part.inlineData.mimeType};base64,${part.inlineData.data}`;
+        return Response.json({ success: true, imageUrl });
+      }
     }
+
+    throw new Error("No image returned from Gemini");
   } catch (err) {
     console.error("Image generation error:", err);
     return Response.json(
