@@ -44,7 +44,7 @@ Brainstorm 3 stunning funny shareable TikTok concepts. Return ONLY a raw JSON ar
 - whyItWorks: why this image + text combo goes viral (2 sentences)
 - viralScore: number 1-10`;
 
-    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash-latest" });
+    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
 
     let result;
     if (photoBase64) {
