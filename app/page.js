@@ -1,0 +1,402 @@
+"use client";
+import { useState, useRef, useEffect } from "react";
+
+const VIBES = [
+  { id: "smart-twist",      label: "Smart Twist" },
+  { id: "stereotype-flip",  label: "Stereotype Flip" },
+  { id: "confident-flex",   label: "Confident Flex" },
+  { id: "deadpan",          label: "Deadpan" },
+  { id: "self-aware",       label: "Self-Aware" },
+];
+
+const SCENARIOS = [
+  "at a coffee shop", "at the gym", "in a bookstore",
+  "walking in the city", "at a restaurant", "at a house party",
+];
+
+// ── TikTok phone mockup drawn on canvas ──────────────────────────────────────
+function TikTokMockup({ photo, concept }) {
+  const ref = useRef();
+
+  useEffect(() => {
+    if (!ref.current || !concept) return;
+    const canvas = ref.current;
+    const ctx    = canvas.getContext("2d");
+    const W = 260, H = 462;
+    canvas.width = W; canvas.height = H;
+
+    const wrap = (text, maxW, fs) => {
+      ctx.font = `bold ${fs}px sans-serif`;
+      const words = text.split(" "); const lines = []; let cur = "";
+      words.forEach(w => {
+        const t = cur ? cur + " " + w : w;
+        if (ctx.measureText(t).width > maxW && cur) { lines.push(cur); cur = w; } else cur = t;
+      });
+      if (cur) lines.push(cur);
+      return lines;
+    };
+
+    const rr = (x, y, w, h, r) => {
+      ctx.beginPath();
+      ctx.moveTo(x+r,y); ctx.lineTo(x+w-r,y); ctx.quadraticCurveTo(x+w,y,x+w,y+r);
+      ctx.lineTo(x+w,y+h-r); ctx.quadraticCurveTo(x+w,y+h,x+w-r,y+h);
+      ctx.lineTo(x+r,y+h); ctx.quadraticCurveTo(x,y+h,x,y+h-r);
+      ctx.lineTo(x,y+r); ctx.quadraticCurveTo(x,y,x+r,y);
+      ctx.closePath(); ctx.fill();
+    };
+
+    const drawUI = () => {
+      // gradients
+      const gt = ctx.createLinearGradient(0,0,0,H*0.32);
+      gt.addColorStop(0,"rgba(0,0,0,0.75)"); gt.addColorStop(1,"rgba(0,0,0,0)");
+      ctx.fillStyle = gt; ctx.fillRect(0,0,W,H);
+      const gb = ctx.createLinearGradient(0,H*0.5,0,H);
+      gb.addColorStop(0,"rgba(0,0,0,0)"); gb.addColorStop(1,"rgba(0,0,0,0.88)");
+      ctx.fillStyle = gb; ctx.fillRect(0,0,W,H);
+
+      // nav
+      ctx.fillStyle = "rgba(255,255,255,0.5)";
+      ctx.font = "bold 10px sans-serif"; ctx.textAlign = "center";
+      ctx.fillText("Following   For You", W/2, 18);
+      ctx.strokeStyle="#fff"; ctx.lineWidth=1.5;
+      ctx.beginPath(); ctx.moveTo(W/2+12,22); ctx.lineTo(W/2+40,22); ctx.stroke();
+
+      // top box
+      if (concept.textTop) {
+        const tl = wrap(concept.textTop, W-32, 11);
+        const th = tl.length*16+12;
+        ctx.fillStyle = "rgba(0,0,0,0.72)"; rr(10,30,W-20,th,7);
+        ctx.fillStyle="#fff"; ctx.font="bold 11px sans-serif"; ctx.textAlign="center";
+        tl.forEach((l,i) => ctx.fillText(l, W/2, 30+12+i*16));
+      }
+
+      // pov center
+      if (concept.textPOV) {
+        const pl = wrap(concept.textPOV, W-28, 14);
+        const ph = pl.length*21+16; const py = H*0.36-ph/2;
+        ctx.fillStyle="rgba(0,0,0,0.82)"; rr(12,py,W-24,ph,9);
+        ctx.fillStyle="#fff"; ctx.font="bold 14px sans-serif"; ctx.textAlign="center";
+        pl.forEach((l,i) => ctx.fillText(l, W/2, py+16+i*21));
+      }
+
+      // bottom red
+      if (concept.textBottom) {
+        const bl = wrap(concept.textBottom, W-28, 12);
+        const bh = bl.length*19+14; const by = H-bh-68;
+        ctx.fillStyle="#ff3b5c"; rr(12,by,W-24,bh,9);
+        ctx.fillStyle="#fff"; ctx.font="bold 12px sans-serif"; ctx.textAlign="center";
+        bl.forEach((l,i) => ctx.fillText(l, W/2, by+14+i*19));
+      }
+
+      // right icons
+      [{ s:"♥",c:"#ff3b5c"},{s:"💬",c:"#fff"},{s:"↗",c:"#fff"}].forEach(({s,c},i)=>{
+        ctx.fillStyle="rgba(0,0,0,0.45)";
+        ctx.beginPath(); ctx.arc(W-20,H-160+i*38,13,0,Math.PI*2); ctx.fill();
+        ctx.fillStyle=c; ctx.font="12px sans-serif"; ctx.textAlign="center";
+        ctx.fillText(s, W-20, H-155+i*38);
+      });
+
+      // username
+      ctx.fillStyle="rgba(255,255,255,0.9)"; ctx.font="bold 10px sans-serif"; ctx.textAlign="left";
+      ctx.fillText("@you", 12, H-36);
+      if (concept.captionA) {
+        ctx.fillStyle="rgba(255,255,255,0.45)"; ctx.font="9px sans-serif";
+        ctx.fillText(concept.captionA.slice(0,34)+"...", 12, H-20);
+      }
+    };
+
+    ctx.clearRect(0,0,W,H);
+    ctx.fillStyle="#111827"; ctx.fillRect(0,0,W,H);
+
+    const src = concept.generatedImage || photo;
+    if (src) {
+      const img = new Image();
+      img.onload = () => {
+        const sc = Math.max(W/img.width, H/img.height);
+        ctx.drawImage(img,(W-img.width*sc)/2,(H-img.height*sc)/2,img.width*sc,img.height*sc);
+        drawUI();
+      };
+      img.src = src;
+    } else {
+      const bg = ctx.createLinearGradient(0,0,W,H);
+      bg.addColorStop(0,"#1a1a2e"); bg.addColorStop(1,"#0f3460");
+      ctx.fillStyle=bg; ctx.fillRect(0,0,W,H);
+      ctx.fillStyle="rgba(255,255,255,0.05)";
+      ctx.beginPath(); ctx.arc(W/2,H*0.33,38,0,Math.PI*2); ctx.fill();
+      ctx.fillRect(W/2-28,H*0.33+32,56,70);
+      drawUI();
+    }
+  }, [photo, concept, concept?.generatedImage]);
+
+  return (
+    <div style={{ display:"flex", justifyContent:"center" }}>
+      <div style={{ background:"#1c1c1e", borderRadius:30, padding:"10px 7px 14px", border:"2px solid rgba(255,255,255,0.1)", boxShadow:"0 24px 60px rgba(0,0,0,0.7)" }}>
+        <div style={{ width:55, height:5, background:"#333", borderRadius:10, margin:"0 auto 8px" }} />
+        <canvas ref={ref} style={{ borderRadius:16, display:"block" }} />
+      </div>
+    </div>
+  );
+}
+
+// ── Copy button ───────────────────────────────────────────────────────────────
+function CopyBtn({ text }) {
+  const [ok, setOk] = useState(false);
+  return (
+    <button onClick={() => { navigator.clipboard.writeText(text).catch(()=>{}); setOk(true); setTimeout(()=>setOk(false),2000); }}
+      style={{ background: ok?"rgba(74,222,128,0.1)":"rgba(255,255,255,0.06)", border:`0.5px solid ${ok?"rgba(74,222,128,0.3)":"rgba(255,255,255,0.1)"}`, borderRadius:6, padding:"3px 8px", fontSize:10, color: ok?"#4ade80":"rgba(255,255,255,0.45)", cursor:"pointer", whiteSpace:"nowrap", fontFamily:"inherit" }}>
+      {ok ? "Copied!" : "Copy"}
+    </button>
+  );
+}
+
+// ── Concept card ──────────────────────────────────────────────────────────────
+function ConceptCard({ c, idx, photo, onGenerateImage }) {
+  const acc = ["#ff3b5c","#25f4ee","#a855f7"][idx % 3];
+  return (
+    <div style={{ background:"rgba(255,255,255,0.03)", border:"0.5px solid rgba(255,255,255,0.1)", borderRadius:24, overflow:"hidden", animation:`fadeUp 0.4s ease ${idx*0.12}s both` }}>
+
+      {/* header */}
+      <div style={{ padding:"16px 18px 12px", borderBottom:"0.5px solid rgba(255,255,255,0.06)" }}>
+        <div style={{ fontSize:10, fontWeight:700, letterSpacing:1, textTransform:"uppercase", color:acc, marginBottom:6 }}>Concept {idx+1}</div>
+        <div style={{ fontFamily:"'Syne',sans-serif", fontWeight:800, fontSize:15, color:"#fff", lineHeight:1.3, marginBottom:10 }}>{c.title}</div>
+        <div style={{ display:"flex", alignItems:"center", gap:5 }}>
+          <span style={{ fontSize:9, color:"rgba(255,255,255,0.3)", letterSpacing:1, textTransform:"uppercase" }}>Viral</span>
+          {Array.from({length:10},(_,j)=>(
+            <span key={j} style={{ display:"inline-block", width:5, height:8, borderRadius:2, background: j<(c.viralScore||8)?acc:"rgba(255,255,255,0.08)" }} />
+          ))}
+          <span style={{ fontSize:10, color:acc, fontWeight:700 }}>{c.viralScore||8}/10</span>
+        </div>
+      </div>
+
+      <div style={{ padding:"16px 18px 18px", display:"flex", flexDirection:"column", gap:14 }}>
+
+        {/* Phone preview */}
+        <TikTokMockup photo={photo} concept={c} />
+
+        {/* Generate image button */}
+        <button
+          onClick={() => onGenerateImage(idx)}
+          disabled={c.generatingImage}
+          style={{ width:"100%", padding:"13px 0", background: c.generatedImage?"rgba(74,222,128,0.1)":c.generatingImage?"rgba(255,255,255,0.05)":"rgba(255,255,255,0.07)", border:`0.5px solid ${c.generatedImage?"rgba(74,222,128,0.3)":c.generatingImage?"rgba(255,255,255,0.1)":"rgba(255,255,255,0.15)"}`, borderRadius:12, color: c.generatedImage?"#4ade80":c.generatingImage?"rgba(255,255,255,0.4)":"#fff", fontFamily:"'Syne',sans-serif", fontWeight:700, fontSize:13, cursor: c.generatingImage?"not-allowed":"pointer", display:"flex", alignItems:"center", justifyContent:"center", gap:8 }}>
+          {c.generatingImage ? (
+            <><span style={{ width:14, height:14, border:"2px solid rgba(255,255,255,0.2)", borderTopColor:"#fff", borderRadius:"50%", animation:"spin 0.8s linear infinite", display:"inline-block" }} /> Generating scene...</>
+          ) : c.generatedImage ? (
+            <> ✓ Scene generated — regenerate</>
+          ) : (
+            <> 🎨 Generate This Scene With AI</>
+          )}
+        </button>
+
+        {/* Scene brief */}
+        <div style={{ background:"rgba(255,184,0,0.07)", border:"0.5px solid rgba(255,184,0,0.3)", borderRadius:14, padding:"12px 14px" }}>
+          <div style={{ fontSize:9, fontWeight:700, letterSpacing:1.2, textTransform:"uppercase", color:"rgba(255,220,80,0.9)", marginBottom:8 }}>🎬 Scene Brief</div>
+
+          {c.addPeople?.length > 0 && (
+            <div style={{ marginBottom:10 }}>
+              <div style={{ fontSize:10, color:"rgba(255,220,80,0.6)", marginBottom:5, fontWeight:600, textTransform:"uppercase", letterSpacing:0.5 }}>People to Add</div>
+              {c.addPeople.map((p,pi)=>(
+                <div key={pi} style={{ display:"flex", alignItems:"flex-start", gap:8, marginBottom:5 }}>
+                  <span style={{ width:18, height:18, borderRadius:"50%", background:"rgba(255,220,80,0.15)", border:"0.5px solid rgba(255,220,80,0.3)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:10, flexShrink:0, marginTop:2 }}>+</span>
+                  <span style={{ fontSize:12, color:"rgba(255,255,255,0.75)", lineHeight:1.5 }}>{p}</span>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {c.addProps && (
+            <div style={{ marginBottom:8 }}>
+              <div style={{ fontSize:10, color:"rgba(255,220,80,0.6)", marginBottom:4, fontWeight:600, textTransform:"uppercase", letterSpacing:0.5 }}>Props / Environment</div>
+              <div style={{ fontSize:12, color:"rgba(255,255,255,0.7)", lineHeight:1.55 }}>{c.addProps}</div>
+            </div>
+          )}
+
+          <div style={{ fontSize:11, color:"rgba(255,220,80,0.65)", lineHeight:1.5, fontStyle:"italic", borderTop:"0.5px solid rgba(255,184,0,0.15)", paddingTop:8, marginTop:8 }}>
+            💡 {c.sceneLogic}
+          </div>
+        </div>
+
+        {/* Text overlays */}
+        <div>
+          <div style={{ fontSize:9, fontWeight:700, letterSpacing:1, textTransform:"uppercase", color:"rgba(255,255,255,0.25)", marginBottom:8 }}>Text On Screen</div>
+          {[
+            { label:"Top — Setup",      text:c.textTop,    color:"rgba(255,255,255,0.8)", bg:"rgba(255,255,255,0.04)", border:"rgba(255,255,255,0.08)" },
+            { label:"Middle — POV",     text:c.textPOV,    color:"#fff",                  bg:"rgba(255,255,255,0.05)", border:"rgba(255,255,255,0.1)" },
+            { label:"Bottom — Punchline",text:c.textBottom, color:acc,                    bg:`${acc}15`,               border:`${acc}44` },
+          ].map(({label,text,color,bg,border})=>(
+            <div key={label} style={{ background:bg, border:`0.5px solid ${border}`, borderRadius:8, padding:"8px 10px", marginBottom:6 }}>
+              <span style={{ fontSize:9, color:"rgba(255,255,255,0.3)", letterSpacing:0.5, textTransform:"uppercase", display:"block", marginBottom:3 }}>{label}</span>
+              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", gap:6 }}>
+                <span style={{ fontSize:12, color, fontWeight:label.includes("Middle")||label.includes("Bottom")?700:400, fontStyle:"italic" }}>"{text}"</span>
+                <CopyBtn text={text} />
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Image prompt (for manual use) */}
+        <div style={{ background:"rgba(255,255,255,0.02)", border:"0.5px solid rgba(255,255,255,0.07)", borderRadius:10, padding:"10px 12px" }}>
+          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:6 }}>
+            <div style={{ fontSize:9, fontWeight:700, letterSpacing:1, textTransform:"uppercase", color:"rgba(255,255,255,0.25)" }}>AI Image Prompt</div>
+            <CopyBtn text={c.imagePrompt} />
+          </div>
+          <div style={{ fontSize:11, color:"rgba(255,255,255,0.4)", lineHeight:1.55, fontStyle:"italic" }}>{c.imagePrompt?.slice(0,120)}...</div>
+        </div>
+
+        {/* Captions */}
+        <div>
+          <div style={{ fontSize:9, fontWeight:700, letterSpacing:1, textTransform:"uppercase", color:"rgba(255,255,255,0.25)", marginBottom:6 }}>Captions</div>
+          {[c.captionA, c.captionB].map((cap,ci)=>(
+            <div key={ci} style={{ background:"rgba(255,255,255,0.025)", border:"0.5px solid rgba(255,255,255,0.07)", borderRadius:8, padding:"8px 10px", fontSize:11, color:"rgba(255,255,255,0.6)", lineHeight:1.5, display:"flex", justifyContent:"space-between", alignItems:"flex-start", gap:8, marginBottom:ci===0?6:0 }}>
+              <span style={{flex:1}}>{cap}</span>
+              <CopyBtn text={cap} />
+            </div>
+          ))}
+        </div>
+
+        {/* Why it works */}
+        <div style={{ background:`${acc}0f`, border:`0.5px solid ${acc}33`, borderRadius:10, padding:"10px 12px" }}>
+          <div style={{ fontSize:9, fontWeight:700, letterSpacing:1, textTransform:"uppercase", color:`${acc}bb`, marginBottom:4 }}>Why This Goes Viral</div>
+          <div style={{ fontSize:11, color:"rgba(255,255,255,0.7)", lineHeight:1.55 }}>{c.whyItWorks}</div>
+        </div>
+
+      </div>
+    </div>
+  );
+}
+
+// ── Main App ──────────────────────────────────────────────────────────────────
+export default function Home() {
+  const [photo,     setPhoto]     = useState(null);
+  const [photoMeta, setPhotoMeta] = useState({ base64: null, mime: null });
+  const [situation, setSituation] = useState("");
+  const [vibe,      setVibe]      = useState("stereotype-flip");
+  const [concepts,  setConcepts]  = useState([]);
+  const [loading,   setLoading]   = useState(false);
+  const [error,     setError]     = useState(null);
+  const [drag,      setDrag]      = useState(false);
+  const fileRef = useRef();
+
+  const handleFile = (file) => {
+    if (!file?.type.startsWith("image/")) return;
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      setPhoto(e.target.result);
+      const base64 = e.target.result.split(",")[1];
+      const mime   = e.target.result.split(";")[0].split(":")[1];
+      setPhotoMeta({ base64, mime });
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const generate = async () => {
+    setLoading(true); setError(null); setConcepts([]);
+    try {
+      const res = await fetch("/api/concepts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ photoBase64: photoMeta.base64, photoMime: photoMeta.mime, situation, vibe }),
+      });
+      const data = await res.json();
+      if (!data.success) throw new Error(data.error);
+      setConcepts(data.concepts.map(c => ({ ...c, generatingImage: false, generatedImage: null })));
+    } catch (err) {
+      setError("Generation failed — " + (err.message || "try again"));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const generateImage = async (idx) => {
+    const concept = concepts[idx];
+    setConcepts(prev => prev.map((c,i) => i===idx ? {...c, generatingImage:true} : c));
+    try {
+      const res = await fetch("/api/generate-image", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ imagePrompt: concept.imagePrompt, photoBase64: photoMeta.base64, photoMime: photoMeta.mime }),
+      });
+      const data = await res.json();
+      if (!data.success) throw new Error(data.error);
+      setConcepts(prev => prev.map((c,i) => i===idx ? {...c, generatingImage:false, generatedImage:data.imageUrl} : c));
+    } catch (err) {
+      setConcepts(prev => prev.map((c,i) => i===idx ? {...c, generatingImage:false} : c));
+      setError("Image generation failed — " + (err.message || "check your FAL_KEY"));
+    }
+  };
+
+  return (
+    <div style={{ minHeight:"100vh", paddingBottom:60 }}>
+      {/* Header */}
+      <div style={{ padding:"20px 28px", borderBottom:"0.5px solid rgba(255,255,255,0.08)", display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+        <div style={{ fontFamily:"'Syne',sans-serif", fontWeight:800, fontSize:20, color:"#fff" }}>
+          BANGER<span style={{ color:"#ff3b5c" }}>.</span>AI
+        </div>
+        <div style={{ fontSize:10, background:"rgba(255,59,92,0.12)", color:"#ff3b5c", padding:"3px 10px", borderRadius:20, border:"0.5px solid rgba(255,59,92,0.3)", letterSpacing:0.5, textTransform:"uppercase" }}>
+          Visual Story Engine
+        </div>
+      </div>
+
+      <div style={{ padding:"24px 28px", maxWidth:980 }}>
+
+        {/* Upload */}
+        <div style={{ fontSize:10, fontWeight:600, letterSpacing:1.5, textTransform:"uppercase", color:"rgba(255,255,255,0.35)", marginBottom:10 }}>Step 1 — Your Photo</div>
+
+        {photo ? (
+          <div style={{ position:"relative", marginBottom:16 }}>
+            <img src={photo} alt="Uploaded" style={{ width:"100%", maxHeight:200, objectFit:"cover", borderRadius:14, display:"block" }} />
+            <div style={{ position:"absolute", top:8, left:8, background:"rgba(0,0,0,0.8)", fontSize:10, color:"#4ade80", padding:"3px 10px", borderRadius:20, fontWeight:600 }}>Photo ready ✓</div>
+            <button onClick={()=>{setPhoto(null);setPhotoMeta({base64:null,mime:null});}} style={{ position:"absolute", top:8, right:8, background:"rgba(0,0,0,0.8)", border:"none", color:"#fff", width:28, height:28, borderRadius:"50%", cursor:"pointer", fontSize:16 }}>×</button>
+          </div>
+        ) : (
+          <div onDragOver={e=>{e.preventDefault();setDrag(true);}} onDragLeave={()=>setDrag(false)}
+            onDrop={e=>{e.preventDefault();setDrag(false);handleFile(e.dataTransfer.files?.[0]);}}
+            onClick={()=>fileRef.current?.click()}
+            style={{ border:`1.5px dashed ${drag?"#ff3b5c":"rgba(255,255,255,0.15)"}`, borderRadius:16, padding:"32px 20px", textAlign:"center", cursor:"pointer", background:drag?"rgba(255,59,92,0.05)":"rgba(255,255,255,0.02)", marginBottom:16 }}>
+            <input ref={fileRef} type="file" accept="image/*" style={{display:"none"}} onChange={e=>handleFile(e.target.files?.[0])} />
+            <div style={{ fontSize:32, marginBottom:10 }}>📸</div>
+            <div style={{ fontSize:14, color:"rgba(255,255,255,0.7)", marginBottom:4 }}>Drop your photo here</div>
+            <div style={{ fontSize:12, color:"rgba(255,255,255,0.35)" }}>AI reads the scene — brainstorms who to add, what to change, generates the full image</div>
+          </div>
+        )}
+
+        {/* Situation */}
+        <div style={{ fontSize:10, fontWeight:600, letterSpacing:1.5, textTransform:"uppercase", color:"rgba(255,255,255,0.35)", marginBottom:10 }}>Step 2 — Situation</div>
+        <input value={situation} onChange={e=>setSituation(e.target.value)} placeholder="Where are you, what's happening..."
+          style={{ width:"100%", background:"rgba(255,255,255,0.04)", border:"0.5px solid rgba(255,255,255,0.1)", borderRadius:12, padding:"12px 14px", fontSize:13, color:"#e8e8e8", fontFamily:"inherit", outline:"none", marginBottom:10 }} />
+        <div style={{ display:"flex", gap:8, flexWrap:"wrap", marginBottom:20 }}>
+          {SCENARIOS.map(s=>(
+            <button key={s} onClick={()=>setSituation(s)} style={{ fontSize:11, padding:"5px 12px", background:"rgba(255,255,255,0.04)", border:"0.5px solid rgba(255,255,255,0.08)", borderRadius:20, color:"rgba(255,255,255,0.45)", cursor:"pointer", fontFamily:"inherit" }}>{s}</button>
+          ))}
+        </div>
+
+        {/* Vibe */}
+        <div style={{ fontSize:10, fontWeight:600, letterSpacing:1.5, textTransform:"uppercase", color:"rgba(255,255,255,0.35)", marginBottom:10 }}>Step 3 — Vibe</div>
+        <div style={{ display:"flex", gap:8, flexWrap:"wrap", marginBottom:24 }}>
+          {VIBES.map(v=>(
+            <button key={v.id} onClick={()=>setVibe(v.id)} style={{ padding:"8px 16px", borderRadius:20, cursor:"pointer", fontFamily:"inherit", fontSize:12, background:vibe===v.id?"rgba(255,59,92,0.12)":"rgba(255,255,255,0.03)", border:`0.5px solid ${vibe===v.id?"rgba(255,59,92,0.4)":"rgba(255,255,255,0.1)"}`, color:vibe===v.id?"#ff7a8a":"rgba(255,255,255,0.5)" }}>{v.label}</button>
+          ))}
+        </div>
+
+        {error && <div style={{ background:"rgba(255,59,92,0.08)", border:"0.5px solid rgba(255,59,92,0.25)", borderRadius:12, padding:"12px 16px", fontSize:12, color:"rgba(255,180,190,0.9)", marginBottom:16 }}>{error}</div>}
+
+        <button onClick={generate} disabled={loading} style={{ width:"100%", padding:16, background:loading?"#7a1a2a":"#ff3b5c", border:"none", borderRadius:14, color:"#fff", fontFamily:"'Syne',sans-serif", fontWeight:800, fontSize:15, cursor:loading?"not-allowed":"pointer", display:"flex", alignItems:"center", justifyContent:"center", gap:8 }}>
+          {loading
+            ? <><span style={{ width:18, height:18, border:"2px solid rgba(255,255,255,0.3)", borderTopColor:"#fff", borderRadius:"50%", animation:"spin 0.8s linear infinite", display:"inline-block" }} /> Brainstorming bangers...</>
+            : <>✦ Generate 3 Bangers</>}
+        </button>
+
+        {/* Results */}
+        {concepts.length > 0 && (
+          <>
+            <div style={{ borderTop:"0.5px solid rgba(255,255,255,0.07)", margin:"32px 0" }} />
+            <div style={{ fontFamily:"'Syne',sans-serif", fontWeight:800, fontSize:18, color:"#fff", marginBottom:6 }}>Your Bangers</div>
+            <div style={{ fontSize:12, color:"rgba(255,255,255,0.35)", marginBottom:20 }}>Click "Generate This Scene" on any concept to create the full AI image with people added</div>
+            <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(290px, 1fr))", gap:20 }}>
+              {concepts.map((c,i) => <ConceptCard key={i} c={c} idx={i} photo={photo} onGenerateImage={generateImage} />)}
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
