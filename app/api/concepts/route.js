@@ -1,9 +1,6 @@
 async function callClaude(messages) {
   const apiKey = process.env.ANTHROPIC_API_KEY;
-  
-  if (!apiKey) {
-    throw new Error("ANTHROPIC_API_KEY is not set in environment variables");
-  }
+  if (!apiKey) throw new Error("ANTHROPIC_API_KEY is not set");
 
   const response = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
@@ -21,56 +18,98 @@ async function callClaude(messages) {
 
   const data = await response.json();
   if (!response.ok) throw new Error(data.error?.message || `API error ${response.status}`);
-  const text = data.content.filter((b) => b.type === "text").map((b) => b.text).join("");
-  return text;
+  return data.content.filter((b) => b.type === "text").map((b) => b.text).join("");
 }
 
 function cleanJSON(raw) {
-  // Remove markdown code blocks if present
   let clean = raw.replace(/```json/gi, "").replace(/```/g, "").trim();
-  // Find first [ or { and last ] or }
-  const firstBracket = Math.min(
+  const first = Math.min(
     clean.indexOf("[") === -1 ? Infinity : clean.indexOf("["),
     clean.indexOf("{") === -1 ? Infinity : clean.indexOf("{")
   );
-  const lastBracket = Math.max(clean.lastIndexOf("]"), clean.lastIndexOf("}"));
-  if (firstBracket !== Infinity && lastBracket !== -1) {
-    clean = clean.slice(firstBracket, lastBracket + 1);
-  }
+  const last = Math.max(clean.lastIndexOf("]"), clean.lastIndexOf("}"));
+  if (first !== Infinity && last !== -1) clean = clean.slice(first, last + 1);
   return clean;
 }
 
+const STYLE_PROMPTS = {
+  pov: {
+    name: "POV",
+    instruction: `Generate POV-style content. Every top text MUST start with "POV:" 
+    The POV sets up a very specific moment or situation the viewer instantly recognizes.
+    The punchline reveals something unexpected, funny, or deeply relatable about that moment.
+    Examples of good POV energy:
+    - "POV: you're the only one who actually prepared for this meeting"
+    - "POV: you ordered one coffee and stayed 4 hours"
+    - "POV: you're watching someone explain something you already knew"
+    Make it so specific that people say "how did they know??"`,
+  },
+  funny: {
+    name: "Funny",
+    instruction: `Generate pure comedy content. The goal is to make people laugh out loud.
+    Study the image and find what is genuinely funny about the situation, the person's expression, 
+    the environment, or the contrast between what's happening and what the text says.
+    The punchline must be unexpected — if someone could guess it, it's not funny enough.
+    Light, warm humor. Never mean. Makes people want to share it immediately.
+    Think: the joke you tell at a party that makes everyone burst out laughing.`,
+  },
+  relatable: {
+    name: "Relatable",
+    instruction: `Generate deeply relatable content that makes people feel SEEN.
+    Look at the image and find the universal human truth in it.
+    The content should make someone stop and say "wait this is literally me" or 
+    immediately tag a friend because it describes them perfectly.
+    The more specific the observation, the more relatable it becomes paradoxically.
+    Think about moments everyone experiences but nobody talks about.`,
+  },
+  flex: {
+    name: "Flex",
+    instruction: `Generate confident flex content — classy, subtle, never arrogant.
+    The flex should feel earned and real, not forced.
+    The best flex makes people respect you more, not feel put down.
+    It can be about intelligence, taste, lifestyle, presence, or perspective.
+    The viewer should think "damn I respect that" not "who does he think he is."
+    Understated confidence hits harder than loud bragging.`,
+  },
+  observation: {
+    name: "Observation",
+    instruction: `Generate sharp social observation content.
+    Look at the image and make an observation about human behavior, society, or life 
+    that most people feel but have never heard said this clearly.
+    The best observations make people comment to agree, share to show friends, 
+    or save because they want to remember it.
+    Think: the thing everyone knows is true but nobody says out loud.`,
+  },
+};
+
 export async function POST(req) {
   try {
-    const { photoBase64, photoMime, situation, vibe } = await req.json();
+    const { photoBase64, photoMime, situation, style } = await req.json();
+
+    const styleConfig = STYLE_PROMPTS[style] || STYLE_PROMPTS.pov;
 
     const imagePart = photoBase64
-      ? [{
-          type: "image",
-          source: { type: "base64", media_type: photoMime || "image/jpeg", data: photoBase64 },
-        }]
+      ? [{ type: "image", source: { type: "base64", media_type: photoMime || "image/jpeg", data: photoBase64 } }]
       : [];
 
-    // ── PASS 1: Visual Analysis ───────────────────────────────────────────────
-    const pass1Raw = await callClaude([{
+    // ── PASS 1: Read the image deeply ────────────────────────────────────────
+    const pass1 = await callClaude([{
       role: "user",
       content: [
         ...imagePart,
         {
           type: "text",
-          text: `Analyze this photo like a sharp social observer who reads people instantly.
+          text: `Look at this image carefully. Describe it like a poet and a comedian combined.
 
-Return ONLY a raw JSON object. No markdown, no explanation, no backticks. Start with { and end with }
-
+Return ONLY raw JSON starting with { and ending with }:
 {
-  "expression": "exact facial expression description",
-  "bodyLanguage": "what posture communicates",
-  "perceivedStatus": "what people assume about this person in 2 seconds",
-  "hiddenEnergy": "what they might actually be thinking that contradicts their look",
-  "environment": "where are they exactly, what surrounds them",
-  "viewerAssumption": "the strongest assumption a viewer makes in first 2 seconds",
-  "comedicTension": "the sharpest contrast between appearance and reality",
-  "tensionType": "looks_intimidating_actually_warm OR looks_serious_actually_funny OR looks_confident_actually_relatable OR stereotype_flip"
+  "whatIsHappening": "exactly what is in this image — be specific and vivid",
+  "mood": "the atmosphere and feeling of this image",
+  "subject": "who or what is the main subject",
+  "details": "interesting specific details most people would notice",
+  "hiddenTruth": "what deeper truth or humor is hiding in plain sight in this image",
+  "universalMoment": "what universal human experience does this image represent",
+  "comedyGold": "the single funniest or most interesting thing about this specific image"
 }`
         }
       ]
@@ -78,76 +117,51 @@ Return ONLY a raw JSON object. No markdown, no explanation, no backticks. Start 
 
     let analysis;
     try {
-      analysis = JSON.parse(cleanJSON(pass1Raw));
+      analysis = JSON.parse(cleanJSON(pass1));
     } catch(e) {
-      throw new Error("Pass 1 failed to parse: " + pass1Raw.slice(0, 200));
+      throw new Error("Analysis failed: " + pass1.slice(0, 200));
     }
 
-    // ── PASS 2: Joke Mechanisms ───────────────────────────────────────────────
-    const pass2Raw = await callClaude([{
+    // ── PASS 2: Generate 3 concepts based on style ────────────────────────────
+    const pass2 = await callClaude([{
       role: "user",
-      content: `You are a comedy writer for viral TikTok content.
+      content: `You are writing viral TikTok text overlays.
 
-Person analysis: ${JSON.stringify(analysis)}
-Context: ${situation || "everyday moment"}
-Vibe: ${vibe || "stereotype-flip"}
+IMAGE ANALYSIS:
+${JSON.stringify(analysis, null, 2)}
 
-Generate 3 different joke mechanisms. Each must use a different tension type from this list:
-SOCIAL_DOMINANCE_FLIP, SILENT_INTELLIGENCE, STEREOTYPE_INVERSION, EMOTIONAL_CONTRAST, STATUS_MISMATCH, COMMENT_MAGNET
+EXTRA CONTEXT: ${situation || "none"}
 
-Return ONLY a raw JSON array. No markdown, no explanation. Start with [ and end with ]
+CONTENT STYLE: ${styleConfig.name}
+STYLE INSTRUCTIONS: ${styleConfig.instruction}
 
+CREATOR: Confident, funny, warm. Makes content about ANYTHING — nature, coffee, football, everyday moments, people. Every image has a story worth telling.
+
+THE FORMAT:
+- Top text: sets up the moment (max 10 words)
+- Middle text: deepens it or gives the POV (max 8 words)  
+- Bottom text: the payoff — the line that makes people stop (max 10 words)
+
+QUALITY CHECK for each concept:
+✓ Would someone screenshot this?
+✓ Would they send it to a friend?
+✓ Is the bottom line genuinely surprising or true?
+✓ Does it ONLY work for THIS specific image?
+
+BANNED: food jokes (unless food is literally in the image), gym jokes, forgetting things, AirPods, being tired, motivational quotes, anything generic
+
+Return ONLY raw JSON array of exactly 3 objects. Start with [ end with ]:
 [
   {
-    "tensionType": "TENSION_TYPE_HERE",
-    "setup": "the assumption viewer makes",
-    "flip": "the specific unexpected reality",
-    "whySharp": "why this works for this specific person"
-  }
-]`
-    }]);
-
-    let mechanisms;
-    try {
-      mechanisms = JSON.parse(cleanJSON(pass2Raw));
-    } catch(e) {
-      throw new Error("Pass 2 failed to parse: " + pass2Raw.slice(0, 200));
-    }
-
-    // ── PASS 3: Write Overlays ────────────────────────────────────────────────
-    const pass3Raw = await callClaude([{
-      role: "user",
-      content: `Write TikTok text overlays for this creator.
-
-CREATOR: Black man, fun, confident, naturally funny, never arrogant. Light warm humor. The guy who says one thing and everyone laughs because it is just real and true.
-
-Analysis: ${JSON.stringify(analysis)}
-Joke mechanisms: ${JSON.stringify(mechanisms)}
-
-RULES:
-- Top text: max 10 words, sounds like a real person typed it
-- Middle text: max 8 words, punchy
-- Bottom punchline: max 10 words, specific, makes them replay it
-- Must feel like a real person posted this not an AI
-- Fun and light — not deep or philosophical
-
-BANNED: food, snacks, gym jokes, forgetting things, AirPods, being tired, motivational quotes
-
-Return ONLY a raw JSON array of exactly 3 objects. No markdown. Start with [ and end with ]
-
-[
-  {
-    "title": "concept name max 6 words",
-    "whatISee": "person energy in one sentence",
-    "tensionType": "tension type used",
-    "textTop": "top overlay text",
-    "textPOV": "center bold text",
-    "textBottom": "the punchline",
-    "addPeople": [],
-    "addProps": null,
+    "title": "concept title max 6 words",
+    "style": "${styleConfig.name}",
+    "whatMakesItWork": "one sentence on why this specific image makes this concept land",
+    "textTop": "top overlay",
+    "textPOV": "middle overlay",
+    "textBottom": "bottom punchline",
     "captionA": "caption with hashtags under 100 chars",
     "captionB": "second caption under 100 chars",
-    "whyItWorks": "why this works for this person specifically",
+    "targetEmotion": "laugh | tag_friend | screenshot | comment | share",
     "viralScore": 8
   }
 ]`
@@ -155,18 +169,14 @@ Return ONLY a raw JSON array of exactly 3 objects. No markdown. Start with [ and
 
     let concepts;
     try {
-      concepts = JSON.parse(cleanJSON(pass3Raw));
+      concepts = JSON.parse(cleanJSON(pass2));
     } catch(e) {
-      throw new Error("Pass 3 failed to parse: " + pass3Raw.slice(0, 200));
+      throw new Error("Concepts failed: " + pass2.slice(0, 200));
     }
 
-    return Response.json({ success: true, concepts });
-
+    return Response.json({ success: true, concepts, analysis });
   } catch (err) {
-    console.error("Generation error:", err.message);
-    return Response.json(
-      { success: false, error: err.message },
-      { status: 500 }
-    );
+    console.error("Error:", err.message);
+    return Response.json({ success: false, error: err.message }, { status: 500 });
   }
 }
