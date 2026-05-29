@@ -14,39 +14,59 @@ export async function POST(req) {
       "self-aware": "Creator is in on the joke — makes fun of the situation with confidence",
     };
 
-    const prompt = `You are a viral TikTok visual comedy director. Create concepts where IMAGE + TEXT OVERLAYS tell the story together. They must match perfectly.
+    const prompt = `You are the sharpest TikTok comedy writer alive. Your job is to look at this photo and write text overlays that make people STOP scrolling, LAUGH, and SHARE immediately.
 
-CREATOR IDENTITY: Black man, intelligent, funny, confident, never mean. Comedy comes from the GAP between what viewer ASSUMES and what TEXT REVEALS.
+CREATOR IDENTITY:
+- Black man, intelligent, sharp, confident, never mean
+- His superpower: he LOOKS one way and the text reveals something completely unexpected
+- The humor is in the GAP — what you assume vs what is actually true
+- Think Kevin Hart's confidence + Dave Chappelle's sharpness + zero arrogance
 
-MOST IMPORTANT RULE — THE CONCEPT MUST MATCH THE IMAGE:
-Look at this photo carefully. Describe to yourself:
-- Where exactly is this person? What environment?
-- What are they wearing?
-- What is their expression?
-- What is in the background?
+WHAT MAKES A BANGER:
+The top text sets up an assumption. The bottom text DESTROYS it in a way nobody saw coming. The punchline must be:
+1. SPECIFIC — not generic. "Last slice of cake" and "skipped leg day" are LAZY and BANNED
+2. UNEXPECTED — if someone could guess it, it's not good enough
+3. CONNECTED to who this person actually looks like they are
+4. SHORT — under 8 words hits harder than 12 words every time
 
-The concept MUST use what you actually see. If they are at a gym — use the gym. If they are on stairs — use the stairs. NEVER invent a situation not visible in the photo.
+LOOK AT THIS PHOTO AND ASK:
+- What does this person's expression suggest they are thinking?
+- What do they look like they do for a living?
+- What assumption would 1000 different viewers make about them?
+- What is the LAST thing anyone would expect this person to say or do?
+- What social observation can be made about someone who looks exactly like this?
 
-FORMULA:
-- Top text = the innocent assumption (what viewer thinks)
-- Middle text = deepens the setup
-- Bottom text = the twist punchline that flips everything
+BANNED PUNCHLINES (too generic, used a million times):
+- Anything about cake, food, snacks
+- Skipped leg day
+- Recalling a meme
+- Thinking about pizza
+- Anything about being tired
+- Basic gym jokes
+
+GOOD PUNCHLINE EXAMPLES (this is the energy):
+- Someone looks super serious → "Just realized I've been mispronouncing 'quinoa' for 3 years"
+- Someone looks confident → "My uber rating is 4.94 and I will never recover"
+- Someone looks thoughtful → "Trying to remember if I said 'you too' when the waiter said enjoy your meal"
+- Someone looks intense → "Ranked 847th in my city at chess and I tell everyone"
 
 ${situation ? `Extra context: ${situation}` : ""}
 Vibe: ${vibeDescriptions[vibe] || vibeDescriptions["stereotype-flip"]}
 
+Generate 3 concepts — each completely different angle. No two concepts can use the same type of joke.
+
 Return ONLY a raw JSON array of exactly 3 objects. No markdown, no backticks:
 
-- title: punchy concept name (max 6 words)
-- whatISee: exactly what you see in the photo that inspired this
-- textTop: setup assumption (max 10 words)
-- textPOV: center bold POV (max 8 words)
-- textBottom: punchline twist (max 10 words, make it hit hard)
-- addPeople: array of people to add to scene. Empty if not needed.
+- title: concept name (max 6 words, punchy)
+- whatISee: what you observe about this specific person — their expression, energy, vibe, what they look like they do
+- textTop: setup (max 10 words — what the viewer assumes)
+- textPOV: center bold text (max 8 words — deepens the setup)
+- textBottom: THE PUNCHLINE (max 10 words — must be specific, unexpected, makes them replay it)
+- addPeople: people to add to scene for extra comedy. Empty array if not needed.
 - addProps: props to add. null if not needed.
 - captionA: caption with hashtags (under 100 chars)
-- captionB: second caption (under 100 chars)
-- whyItWorks: why this goes viral (2 sentences)
+- captionB: second caption different angle (under 100 chars)
+- whyItWorks: specifically why this punchline works for THIS person's look (2 sentences)
 - viralScore: number 1-10`;
 
     const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
