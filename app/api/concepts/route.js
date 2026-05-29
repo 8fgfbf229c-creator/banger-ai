@@ -1,6 +1,6 @@
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import Anthropic from "@anthropic-ai/sdk";
 
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
 export async function POST(req) {
   try {
@@ -26,7 +26,7 @@ Before writing anything, carefully observe EVERYTHING in this specific photo:
 - What objects, people, or details are visible in the background?
 - What is the mood and lighting of the scene?
 
-THEN build the concept around EXACTLY what you see. 
+THEN build the concept around EXACTLY what you see.
 - If they are on stairs → the concept uses the stairs
 - If they are in a car → the concept uses the car
 - If they are in a room → the concept uses that specific room
@@ -35,7 +35,7 @@ THEN build the concept around EXACTLY what you see.
 
 THE FORMULA THAT WORKS:
 Top text = what the viewer THINKS is happening (the assumption)
-Middle text = POV that deepens the setup  
+Middle text = POV that deepens the setup
 Bottom text = the TWIST that flips the assumption and makes them laugh or say "damn"
 
 PUNCHLINE RULES:
@@ -53,7 +53,7 @@ Return ONLY a raw JSON array of exactly 3 objects. No markdown, no backticks, no
 
 - title: concept name (max 6 words, punchy)
 - whatISee: one sentence describing exactly what you see in this specific image that inspired this concept
-- textTop: TOP overlay — sets up the assumption (max 10 words, conversational, e.g. "Me trying to look normal at the airport")
+- textTop: TOP overlay — sets up the assumption (max 10 words, conversational)
 - textPOV: CENTER bold text — the POV or observation that deepens it (max 8 words, hits hard)
 - textBottom: BOTTOM — the punchline that flips everything (max 10 words, this is the money shot)
 - addPeople: array of specific people to add to make the scene funnier — detailed description. Empty array if not needed.
@@ -63,24 +63,31 @@ Return ONLY a raw JSON array of exactly 3 objects. No markdown, no backticks, no
 - whyItWorks: specifically why THIS image + THESE words = viral (2 sentences, be precise)
 - viralScore: number 1-10`;
 
-    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
-
-    let result;
-    if (photoBase64) {
-      result = await model.generateContent([
-        prompt,
-        {
-          inlineData: {
-            mimeType: photoMime || "image/jpeg",
-            data: photoBase64,
+    const messageContent = photoBase64
+      ? [
+          {
+            type: "image",
+            source: {
+              type: "base64",
+              media_type: photoMime || "image/jpeg",
+              data: photoBase64,
+            },
           },
-        },
-      ]);
-    } else {
-      result = await model.generateContent(prompt);
-    }
+          { type: "text", text: prompt },
+        ]
+      : prompt;
 
-    const raw = result.response.text();
+    const response = await client.messages.create({
+      model: "claude-sonnet-4-20250514",
+      max_tokens: 1500,
+      messages: [{ role: "user", content: messageContent }],
+    });
+
+    const raw = response.content
+      .filter((b) => b.type === "text")
+      .map((b) => b.text)
+      .join("");
+
     const clean = raw.replace(/```json|```/g, "").trim();
     const concepts = JSON.parse(clean);
 
