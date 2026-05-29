@@ -218,11 +218,111 @@ function ConceptCard({ c, idx, photo }) {
   const canvasRef = useRef();
 
   const download = () => {
-    if (!canvasRef.current) return;
-    const link = document.createElement("a");
-    link.download = `banger-concept-${idx+1}.png`;
-    link.href = canvasRef.current.toDataURL("image/png");
-    link.click();
+    // Create a clean canvas — no TikTok chrome, just photo + text overlays
+    const canvas = document.createElement("canvas");
+    const W = 1080, H = 1920; // Full TikTok resolution 9:16
+    canvas.width = W;
+    canvas.height = H;
+    const ctx = canvas.getContext("2d");
+
+    const wrap = (text, maxW, fs) => {
+      ctx.font = `bold ${fs}px sans-serif`;
+      const words = text.split(" ");
+      const lines = [];
+      let cur = "";
+      words.forEach(w => {
+        const t = cur ? cur + " " + w : w;
+        if (ctx.measureText(t).width > maxW && cur) { lines.push(cur); cur = w; }
+        else cur = t;
+      });
+      if (cur) lines.push(cur);
+      return lines;
+    };
+
+    const rr = (x, y, w, h, r) => {
+      ctx.beginPath();
+      ctx.moveTo(x+r,y); ctx.lineTo(x+w-r,y);
+      ctx.quadraticCurveTo(x+w,y,x+w,y+r);
+      ctx.lineTo(x+w,y+h-r);
+      ctx.quadraticCurveTo(x+w,y+h,x+w-r,y+h);
+      ctx.lineTo(x+r,y+h);
+      ctx.quadraticCurveTo(x,y+h,x,y+h-r);
+      ctx.lineTo(x,y+r);
+      ctx.quadraticCurveTo(x,y,x+r,y);
+      ctx.closePath();
+      ctx.fill();
+    };
+
+    const drawClean = () => {
+      // bottom gradient only
+      const gb = ctx.createLinearGradient(0, H*0.5, 0, H);
+      gb.addColorStop(0, "rgba(0,0,0,0)");
+      gb.addColorStop(1, "rgba(0,0,0,0.85)");
+      ctx.fillStyle = gb;
+      ctx.fillRect(0, 0, W, H);
+
+      // TOP text
+      if (c.textTop) {
+        const tl = wrap(c.textTop, W-120, 48);
+        const th = tl.length*68+56;
+        ctx.fillStyle = "rgba(0,0,0,0.78)";
+        rr(40, 80, W-80, th, 24);
+        ctx.fillStyle = "#fff";
+        ctx.font = "bold 48px sans-serif";
+        ctx.textAlign = "center";
+        tl.forEach((l,i) => ctx.fillText(l, W/2, 80+56+i*68));
+      }
+
+      // CENTER POV
+      if (c.textPOV) {
+        const pl = wrap(c.textPOV, W-120, 64);
+        const ph = pl.length*88+60;
+        const py = H*0.38 - ph/2;
+        ctx.fillStyle = "rgba(0,0,0,0.85)";
+        rr(40, py, W-80, ph, 28);
+        ctx.fillStyle = "#ffffff";
+        ctx.font = "bold 64px sans-serif";
+        ctx.textAlign = "center";
+        pl.forEach((l,i) => ctx.fillText(l, W/2, py+66+i*88));
+      }
+
+      // BOTTOM punchline red
+      if (c.textBottom) {
+        const bl = wrap(c.textBottom, W-120, 52);
+        const bh = bl.length*76+56;
+        const by = H - bh - 200;
+        ctx.fillStyle = "#ff3b5c";
+        rr(40, by, W-80, bh, 28);
+        ctx.fillStyle = "#fff";
+        ctx.font = "bold 52px sans-serif";
+        ctx.textAlign = "center";
+        bl.forEach((l,i) => ctx.fillText(l, W/2, by+60+i*76));
+      }
+    };
+
+    ctx.fillStyle = "#111";
+    ctx.fillRect(0, 0, W, H);
+
+    if (photo) {
+      const img = new Image();
+      img.onload = () => {
+        const sc = Math.max(W/img.width, H/img.height);
+        const sw = img.width*sc, sh = img.height*sc;
+        ctx.drawImage(img, (W-sw)/2, (H-sh)/2, sw, sh);
+        drawClean();
+        const link = document.createElement("a");
+        link.download = `banger-${idx+1}.png`;
+        link.href = canvas.toDataURL("image/png");
+        link.click();
+      };
+      img.src = photo;
+    } else {
+      drawClean();
+      const link = document.createElement("a");
+      link.download = `banger-${idx+1}.png`;
+      link.href = canvas.toDataURL("image/png");
+      link.click();
+    }
   };
 
   return (
