@@ -6,84 +6,131 @@ export async function POST(req) {
   try {
     const { photoBase64, photoMime, situation, vibe } = await req.json();
 
-    const vibeDescriptions = {
-      "smart-twist": "Looks simple on surface, reveals sharp intelligence or irony at the end",
-      "stereotype-flip": "Set up a visual assumption the viewer makes, then the text completely flips it — done with warmth and wit, never mean",
-      "confident-flex": "Subtle showing off done with class and self-awareness, never bragging",
-      "deadpan": "Something absurd happening visually — creator looks completely unbothered",
-      "self-aware": "Creator is in on the joke — makes fun of the situation with confidence",
-    };
+    const model = genAI.getGenerativeModel({
+      model: "gemini-2.5-flash",
+      generationConfig: { temperature: 0.4 },
+    });
 
-    const prompt = `You are the sharpest TikTok comedy writer alive. Your job is to look at this photo and write text overlays that make people STOP scrolling, LAUGH, and SHARE immediately.
+    const creativeModel = genAI.getGenerativeModel({
+      model: "gemini-2.5-flash",
+      generationConfig: { temperature: 1.1, topP: 0.95 },
+    });
+
+    const imagepart = photoBase64
+      ? [{ inlineData: { mimeType: photoMime || "image/jpeg", data: photoBase64 } }]
+      : [];
+
+    // ── PASS 1: Visual + Social Analysis ─────────────────────────────────────
+    const analysisPrompt = `You are a sharp social observer and body language expert.
+Analyze this photo like a human who reads people instantly.
+
+Return ONLY raw JSON — no markdown, no backticks:
+{
+  "expression": "exact description of facial expression",
+  "bodyLanguage": "what their posture and body communicate",
+  "perceivedStatus": "what most people would assume about this person's status/personality in 2 seconds",
+  "hiddenEnergy": "what this person might actually be thinking or feeling that contradicts how they look",
+  "environment": "exactly where are they, what is around them",
+  "socialDynamic": "what is happening socially in this scene",
+  "viewerAssumption": "the single strongest assumption a viewer makes in the first 2 seconds",
+  "comedicTension": "the single sharpest contrast between appearance and reality for this specific person",
+  "tensionType": "one of: looks_intimidating_actually_warm | looks_serious_actually_funny | looks_confident_actually_relatable | looks_focused_actually_distracted | looks_powerful_actually_humble | stereotype_flip"
+}`;
+
+    const analysisResult = await model.generateContent([
+      analysisPrompt,
+      ...imagepart,
+    ]);
+    const analysisRaw = analysisResult.response.text().replace(/```json|```/g, "").trim();
+    const analysis = JSON.parse(analysisRaw);
+
+    // ── PASS 2: Joke Mechanism Selection ─────────────────────────────────────
+    const jokeMechanismPrompt = `You are a comedy writer who specializes in viral social media humor.
+
+Here is the analysis of the person in the photo:
+${JSON.stringify(analysis, null, 2)}
+
+Situation context: ${situation || "everyday moment"}
+Requested vibe: ${vibe || "stereotype-flip"}
+
+Based on this analysis, generate 3 DIFFERENT joke mechanisms. Each must use a different type of comedy tension.
+
+Choose from these tension types and assign one to each concept:
+- SOCIAL DOMINANCE FLIP: looks powerful → reveals something unexpectedly humble or relatable
+- SILENT INTELLIGENCE: looks quiet/still → reveals sharp social observation nobody else noticed  
+- STEREOTYPE INVERSION: viewer makes racial/social assumption → completely subverted with warmth
+- EMOTIONAL CONTRAST: serious exterior → surprisingly soft, funny, or vulnerable interior
+- STATUS MISMATCH: looks one economic/social level → actually at a completely different level
+- COMMENT MAGNET: says something so true that people MUST comment to agree or disagree
+
+For each concept return:
+- tensionType: which type from above
+- setup: the assumption the viewer makes (1 sentence)
+- flip: what the reality actually is (1 sentence, must be specific NOT generic)
+- whySharp: why this specific flip works for THIS person's specific look
+- commentBait: what kind of comment this will trigger
+
+Return ONLY raw JSON array of 3 objects. No markdown, no backticks.`;
+
+    const mechanismResult = await creativeModel.generateContent(jokeMechanismPrompt);
+    const mechanismRaw = mechanismResult.response.text().replace(/```json|```/g, "").trim();
+    const mechanisms = JSON.parse(mechanismRaw);
+
+    // ── PASS 3: Write the Overlays ────────────────────────────────────────────
+    const overlayPrompt = `You are writing TikTok text overlays. You have the analysis and joke mechanisms. Now write the final overlays.
 
 CREATOR IDENTITY:
-- Black man, intelligent, sharp, confident, never mean
-- His superpower: he LOOKS one way and the text reveals something completely unexpected
-- The humor is in the GAP — what you assume vs what is actually true
-- Think Kevin Hart's confidence + Dave Chappelle's sharpness + zero arrogance
+- Black man, fun, confident, naturally funny, never arrogant
+- His humor: light, smart, makes people smile and feel included
+- NOT: deep philosopher, trying too hard, mean, generic
+- YES: the guy who says one thing and the room laughs because it's just TRUE and real
 
-WHAT MAKES A BANGER:
-The top text sets up an assumption. The bottom text DESTROYS it in a way nobody saw coming. The punchline must be:
-1. SPECIFIC — not generic. "Last slice of cake" and "skipped leg day" are LAZY and BANNED
-2. UNEXPECTED — if someone could guess it, it's not good enough
-3. CONNECTED to who this person actually looks like they are
-4. SHORT — under 8 words hits harder than 12 words every time
+Photo analysis:
+${JSON.stringify(analysis, null, 2)}
 
-LOOK AT THIS PHOTO AND ASK:
-- What does this person's expression suggest they are thinking?
-- What do they look like they do for a living?
-- What assumption would 1000 different viewers make about them?
-- What is the LAST thing anyone would expect this person to say or do?
-- What social observation can be made about someone who looks exactly like this?
+Joke mechanisms to use:
+${JSON.stringify(mechanisms, null, 2)}
 
-BANNED PUNCHLINES (too generic, used a million times):
-- Anything about cake, food, snacks
-- Skipped leg day
-- Recalling a meme
-- Thinking about pizza
-- Anything about being tired
-- Basic gym jokes
+WRITING RULES:
+1. Top text = 10 words max. Sounds like something a real person would type
+2. Middle text = 8 words max. Punchy, bold energy
+3. Bottom text = 10 words max. THE PUNCHLINE. Must feel earned, specific, impossible to apply to everyone
+4. NO motivational language, NO fake deep quotes, NO internet slang
+5. Must sound like a real person posted this, not an AI
+6. The punchline must make someone say "wait" then laugh
 
-GOOD PUNCHLINE EXAMPLES (this is the energy):
-- Someone looks super serious → "Just realized I've been mispronouncing 'quinoa' for 3 years"
-- Someone looks confident → "My uber rating is 4.94 and I will never recover"
-- Someone looks thoughtful → "Trying to remember if I said 'you too' when the waiter said enjoy your meal"
-- Someone looks intense → "Ranked 847th in my city at chess and I tell everyone"
+BANNED PUNCHLINES:
+- anything about food, snacks, cake
+- gym jokes about sets or reps
+- forgetting things at home
+- AirPods or phone chargers  
+- being tired or sleepy
+- "this is my X face"
+- generic "we all do this" observations
 
-${situation ? `Extra context: ${situation}` : ""}
-Vibe: ${vibeDescriptions[vibe] || vibeDescriptions["stereotype-flip"]}
+HARDNESS FILTER — before finalizing each concept ask:
+- Would I screenshot this? 
+- Would I send this to a friend?
+- Does this feel like only THIS person could post it?
+If the answer is no to any — rewrite it.
 
-Generate 3 concepts — each completely different angle. No two concepts can use the same type of joke.
+Return ONLY raw JSON array of exactly 3 objects. No markdown, no backticks:
+- title: concept name max 6 words
+- whatISee: one sentence on the person's energy in this photo
+- tensionType: which tension type this uses
+- textTop: top overlay
+- textPOV: center bold overlay  
+- textBottom: the punchline
+- addPeople: specific people to add to scene for extra comedy. Empty array if not needed.
+- addProps: props or environment changes. null if not needed.
+- captionA: caption with hashtags under 100 chars
+- captionB: second caption under 100 chars
+- whyItWorks: why this punchline works for THIS person specifically (2 sentences)
+- viralScore: 1-10`;
 
-Return ONLY a raw JSON array of exactly 3 objects. No markdown, no backticks:
-
-- title: concept name (max 6 words, punchy)
-- whatISee: what you observe about this specific person — their expression, energy, vibe, what they look like they do
-- textTop: setup (max 10 words — what the viewer assumes)
-- textPOV: center bold text (max 8 words — deepens the setup)
-- textBottom: THE PUNCHLINE (max 10 words — must be specific, unexpected, makes them replay it)
-- addPeople: people to add to scene for extra comedy. Empty array if not needed.
-- addProps: props to add. null if not needed.
-- captionA: caption with hashtags (under 100 chars)
-- captionB: second caption different angle (under 100 chars)
-- whyItWorks: specifically why this punchline works for THIS person's look (2 sentences)
-- viralScore: number 1-10`;
-
-    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
-
-    let result;
-    if (photoBase64) {
-      result = await model.generateContent([
-        prompt,
-        { inlineData: { mimeType: photoMime || "image/jpeg", data: photoBase64 } },
-      ]);
-    } else {
-      result = await model.generateContent(prompt);
-    }
-
-    const raw = result.response.text();
-    const clean = raw.replace(/```json|```/g, "").trim();
-    const concepts = JSON.parse(clean);
+    const overlayResult = await creativeModel.generateContent(overlayPrompt);
+    const overlayRaw = overlayResult.response.text().replace(/```json|```/g, "").trim();
+    const concepts = JSON.parse(overlayRaw);
 
     return Response.json({ success: true, concepts });
   } catch (err) {
