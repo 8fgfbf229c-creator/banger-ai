@@ -25,11 +25,12 @@ export async function POST(req) {
       : [{ role: "user", parts: [{ text: fullPrompt }] }];
 
     const result = await model.generateContent(
-      photoBase64
-        ? [fullPrompt, { inlineData: { mimeType: photoMime || "image/jpeg", data: photoBase64 } }]
-        : [fullPrompt],
-      { generationConfig: { responseModalities: ["image", "text"] } }
-    );
+  photoBase64
+    ? [fullPrompt, { inlineData: { mimeType: photoMime || "image/jpeg", data: photoBase64 } }]
+    : [fullPrompt],
+  { generationConfig: { responseModalities: ["image", "text"] } }
+);
+
 
     const response = result.response;
     const parts = response.candidates?.[0]?.content?.parts || [];
