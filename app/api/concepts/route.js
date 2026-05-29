@@ -1,7 +1,3 @@
-import Anthropic from "@anthropic-ai/sdk";
-
-const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-
 export async function POST(req) {
   try {
     const { photoBase64, photoMime, situation, vibe } = await req.json();
@@ -36,31 +32,30 @@ THEN build the concept around EXACTLY what you see.
 THE FORMULA THAT WORKS:
 Top text = what the viewer THINKS is happening (the assumption)
 Middle text = POV that deepens the setup
-Bottom text = the TWIST that flips the assumption and makes them laugh or say "damn"
+Bottom text = the TWIST that flips everything and makes them laugh or say "damn"
 
 PUNCHLINE RULES:
 - The bottom text must be SURPRISING — not what anyone expects
 - It must connect DIRECTLY to something visible in the image
 - Short = harder hitting. Max 10 words. Less is more.
-- Think: what would make someone replay this video?
 
 ${situation ? `Extra context from creator: ${situation}` : ""}
 Vibe: ${vibeDescriptions[vibe] || vibeDescriptions["stereotype-flip"]}
 
-NOW look at the image and generate 3 concepts. Each must use a DIFFERENT angle — don't repeat the same type of joke.
+Generate 3 concepts. Each must use a DIFFERENT angle.
 
-Return ONLY a raw JSON array of exactly 3 objects. No markdown, no backticks, no explanation:
+Return ONLY a raw JSON array of exactly 3 objects. No markdown, no backticks:
 
 - title: concept name (max 6 words, punchy)
-- whatISee: one sentence describing exactly what you see in this specific image that inspired this concept
-- textTop: TOP overlay — sets up the assumption (max 10 words, conversational)
-- textPOV: CENTER bold text — the POV or observation that deepens it (max 8 words, hits hard)
-- textBottom: BOTTOM — the punchline that flips everything (max 10 words, this is the money shot)
-- addPeople: array of specific people to add to make the scene funnier — detailed description. Empty array if not needed.
-- addProps: specific props or environment changes that enhance the joke. null if not needed.
-- captionA: first caption with hashtags (under 100 chars, punchy)
-- captionB: second caption different angle (under 100 chars)
-- whyItWorks: specifically why THIS image + THESE words = viral (2 sentences, be precise)
+- whatISee: one sentence describing exactly what you see in this specific image
+- textTop: TOP overlay — sets up the assumption (max 10 words)
+- textPOV: CENTER bold text — the POV (max 8 words)
+- textBottom: BOTTOM — the punchline (max 10 words)
+- addPeople: array of specific people to add. Empty array if not needed.
+- addProps: specific props to add. null if not needed.
+- captionA: first caption with hashtags (under 100 chars)
+- captionB: second caption (under 100 chars)
+- whyItWorks: why this goes viral (2 sentences)
 - viralScore: number 1-10`;
 
     const messageContent = photoBase64
@@ -75,15 +70,35 @@ Return ONLY a raw JSON array of exactly 3 objects. No markdown, no backticks, no
           },
           { type: "text", text: prompt },
         ]
-      : prompt;
+      : [{ type: "text", text: prompt }];
 
-    const response = await client.messages.create({
-      model: "claude-sonnet-4-20250514",
-      max_tokens: 1500,
-      messages: [{ role: "user", content: messageContent }],
+    const apiKey = process.env.ANTHROPIC_API_KEY;
+    
+    if (!apiKey) {
+      throw new Error("ANTHROPIC_API_KEY environment variable is not set");
+    }
+
+    const response = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-api-key": apiKey,
+        "anthropic-version": "2023-06-01",
+      },
+      body: JSON.stringify({
+        model: "claude-sonnet-4-20250514",
+        max_tokens: 1500,
+        messages: [{ role: "user", content: messageContent }],
+      }),
     });
 
-    const raw = response.content
+    if (!response.ok) {
+      const errText = await response.text();
+      throw new Error(`Anthropic API error ${response.status}: ${errText}`);
+    }
+
+    const data = await response.json();
+    const raw = data.content
       .filter((b) => b.type === "text")
       .map((b) => b.text)
       .join("");
