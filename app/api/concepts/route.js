@@ -1,10 +1,15 @@
-async function callClaude(messages, temperature = 0.7) {
+async function callClaude(messages) {
   const apiKey = process.env.ANTHROPIC_API_KEY;
+  
+  if (!apiKey) {
+    throw new Error("ANTHROPIC_API_KEY is not set in environment variables");
+  }
+
   const response = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      "x-api-key": apiKey,
+      "x-api-key": apiKey.trim(),
       "anthropic-version": "2023-06-01",
     },
     body: JSON.stringify({
@@ -13,9 +18,26 @@ async function callClaude(messages, temperature = 0.7) {
       messages,
     }),
   });
+
   const data = await response.json();
-  if (!response.ok) throw new Error(data.error?.message || "Claude API error");
-  return data.content.filter((b) => b.type === "text").map((b) => b.text).join("");
+  if (!response.ok) throw new Error(data.error?.message || `API error ${response.status}`);
+  const text = data.content.filter((b) => b.type === "text").map((b) => b.text).join("");
+  return text;
+}
+
+function cleanJSON(raw) {
+  // Remove markdown code blocks if present
+  let clean = raw.replace(/```json/gi, "").replace(/```/g, "").trim();
+  // Find first [ or { and last ] or }
+  const firstBracket = Math.min(
+    clean.indexOf("[") === -1 ? Infinity : clean.indexOf("["),
+    clean.indexOf("{") === -1 ? Infinity : clean.indexOf("{")
+  );
+  const lastBracket = Math.max(clean.lastIndexOf("]"), clean.lastIndexOf("}"));
+  if (firstBracket !== Infinity && lastBracket !== -1) {
+    clean = clean.slice(firstBracket, lastBracket + 1);
+  }
+  return clean;
 }
 
 export async function POST(req) {
@@ -29,119 +51,119 @@ export async function POST(req) {
         }]
       : [];
 
-    // ── PASS 1: Visual + Social Analysis ─────────────────────────────────────
-    const pass1 = await callClaude([{
+    // ── PASS 1: Visual Analysis ───────────────────────────────────────────────
+    const pass1Raw = await callClaude([{
       role: "user",
       content: [
         ...imagePart,
         {
           type: "text",
-          text: `You are a sharp social observer and body language expert.
-Analyze this photo like a human who reads people instantly.
+          text: `Analyze this photo like a sharp social observer who reads people instantly.
 
-Return ONLY raw JSON — no markdown, no backticks:
+Return ONLY a raw JSON object. No markdown, no explanation, no backticks. Start with { and end with }
+
 {
-  "expression": "exact description of facial expression",
-  "bodyLanguage": "what their posture and body communicate",
-  "perceivedStatus": "what most people assume about this person in 2 seconds",
-  "hiddenEnergy": "what this person might actually be thinking that contradicts how they look",
-  "environment": "exactly where are they, what is around them",
-  "viewerAssumption": "the single strongest assumption a viewer makes in first 2 seconds",
-  "comedicTension": "sharpest contrast between appearance and reality for this specific person",
-  "tensionType": "one of: looks_intimidating_actually_warm | looks_serious_actually_funny | looks_confident_actually_relatable | looks_focused_actually_distracted | stereotype_flip"
+  "expression": "exact facial expression description",
+  "bodyLanguage": "what posture communicates",
+  "perceivedStatus": "what people assume about this person in 2 seconds",
+  "hiddenEnergy": "what they might actually be thinking that contradicts their look",
+  "environment": "where are they exactly, what surrounds them",
+  "viewerAssumption": "the strongest assumption a viewer makes in first 2 seconds",
+  "comedicTension": "the sharpest contrast between appearance and reality",
+  "tensionType": "looks_intimidating_actually_warm OR looks_serious_actually_funny OR looks_confident_actually_relatable OR stereotype_flip"
 }`
         }
       ]
-    }], 0.4);
+    }]);
 
-    const analysis = JSON.parse(pass1.replace(/```json|```/g, "").trim());
+    let analysis;
+    try {
+      analysis = JSON.parse(cleanJSON(pass1Raw));
+    } catch(e) {
+      throw new Error("Pass 1 failed to parse: " + pass1Raw.slice(0, 200));
+    }
 
     // ── PASS 2: Joke Mechanisms ───────────────────────────────────────────────
-    const pass2 = await callClaude([{
+    const pass2Raw = await callClaude([{
       role: "user",
-      content: `You are a comedy writer who specializes in viral TikTok humor.
+      content: `You are a comedy writer for viral TikTok content.
 
-Photo analysis:
-${JSON.stringify(analysis, null, 2)}
-
+Person analysis: ${JSON.stringify(analysis)}
 Context: ${situation || "everyday moment"}
 Vibe: ${vibe || "stereotype-flip"}
 
-Generate 3 DIFFERENT joke mechanisms. Each uses a different tension type:
-- SOCIAL DOMINANCE FLIP: looks powerful → reveals something unexpectedly humble or relatable
-- SILENT INTELLIGENCE: looks quiet → reveals sharp observation nobody else noticed
-- STEREOTYPE INVERSION: viewer makes assumption → completely subverted with warmth and wit
-- EMOTIONAL CONTRAST: serious exterior → surprisingly funny or vulnerable interior
-- STATUS MISMATCH: looks one level → actually at a completely different level
-- COMMENT MAGNET: says something so true people MUST comment
+Generate 3 different joke mechanisms. Each must use a different tension type from this list:
+SOCIAL_DOMINANCE_FLIP, SILENT_INTELLIGENCE, STEREOTYPE_INVERSION, EMOTIONAL_CONTRAST, STATUS_MISMATCH, COMMENT_MAGNET
 
-Return ONLY raw JSON array of 3 objects. No markdown:
-- tensionType: which type
-- setup: the assumption viewer makes (1 sentence)
-- flip: the reality (1 sentence, specific NOT generic)
-- whySharp: why this works for THIS person's specific look`
-    }], 1.1);
+Return ONLY a raw JSON array. No markdown, no explanation. Start with [ and end with ]
 
-    const mechanisms = JSON.parse(pass2.replace(/```json|```/g, "").trim());
+[
+  {
+    "tensionType": "TENSION_TYPE_HERE",
+    "setup": "the assumption viewer makes",
+    "flip": "the specific unexpected reality",
+    "whySharp": "why this works for this specific person"
+  }
+]`
+    }]);
 
-    // ── PASS 3: Write The Overlays ────────────────────────────────────────────
-    const pass3 = await callClaude([{
+    let mechanisms;
+    try {
+      mechanisms = JSON.parse(cleanJSON(pass2Raw));
+    } catch(e) {
+      throw new Error("Pass 2 failed to parse: " + pass2Raw.slice(0, 200));
+    }
+
+    // ── PASS 3: Write Overlays ────────────────────────────────────────────────
+    const pass3Raw = await callClaude([{
       role: "user",
-      content: `You are writing TikTok text overlays for a specific creator.
+      content: `Write TikTok text overlays for this creator.
 
-CREATOR IDENTITY:
-- Black man, fun, confident, naturally funny, never arrogant or mean
-- Humor style: light, warm, makes people smile and feel included
-- The guy who says one thing and the room laughs because it's just TRUE and real
-- NOT trying to be deep or philosophical — just genuinely funny and himself
+CREATOR: Black man, fun, confident, naturally funny, never arrogant. Light warm humor. The guy who says one thing and everyone laughs because it is just real and true.
 
-Photo analysis:
-${JSON.stringify(analysis, null, 2)}
+Analysis: ${JSON.stringify(analysis)}
+Joke mechanisms: ${JSON.stringify(mechanisms)}
 
-Joke mechanisms:
-${JSON.stringify(mechanisms, null, 2)}
+RULES:
+- Top text: max 10 words, sounds like a real person typed it
+- Middle text: max 8 words, punchy
+- Bottom punchline: max 10 words, specific, makes them replay it
+- Must feel like a real person posted this not an AI
+- Fun and light — not deep or philosophical
 
-WRITING RULES:
-1. Top text = max 10 words. Sounds like a real person typed it
-2. Middle text = max 8 words. Punchy bold energy
-3. Bottom text = max 10 words. THE PUNCHLINE — specific, earned, makes them replay it
-4. Must sound like a real person posted this, NOT an AI
-5. Light and fun — not deep, not philosophical, not trying too hard
+BANNED: food, snacks, gym jokes, forgetting things, AirPods, being tired, motivational quotes
 
-BANNED:
-- food, snacks, cake, cooking
-- gym jokes about sets/reps
-- forgetting things at home
-- AirPods, chargers, phones
-- being tired or sleepy
-- motivational language
-- fake deep quotes
+Return ONLY a raw JSON array of exactly 3 objects. No markdown. Start with [ and end with ]
 
-HARDNESS CHECK before keeping each punchline:
-✓ Would someone screenshot this?
-✓ Would they send it to a friend?
-✓ Does it feel like only THIS person could post it?
+[
+  {
+    "title": "concept name max 6 words",
+    "whatISee": "person energy in one sentence",
+    "tensionType": "tension type used",
+    "textTop": "top overlay text",
+    "textPOV": "center bold text",
+    "textBottom": "the punchline",
+    "addPeople": [],
+    "addProps": null,
+    "captionA": "caption with hashtags under 100 chars",
+    "captionB": "second caption under 100 chars",
+    "whyItWorks": "why this works for this person specifically",
+    "viralScore": 8
+  }
+]`
+    }]);
 
-Return ONLY raw JSON array of exactly 3 objects. No markdown, no backticks:
-- title: concept name max 6 words
-- whatISee: this person's energy in one sentence
-- tensionType: tension type used
-- textTop: top overlay
-- textPOV: center bold overlay
-- textBottom: the punchline
-- addPeople: specific people to add for extra comedy. Empty array if not needed.
-- addProps: props or changes to add. null if not needed.
-- captionA: caption with hashtags under 100 chars
-- captionB: second caption under 100 chars
-- whyItWorks: why this punchline works for THIS person (2 sentences)
-- viralScore: 1-10`
-    }], 1.1);
-
-    const concepts = JSON.parse(pass3.replace(/```json|```/g, "").trim());
+    let concepts;
+    try {
+      concepts = JSON.parse(cleanJSON(pass3Raw));
+    } catch(e) {
+      throw new Error("Pass 3 failed to parse: " + pass3Raw.slice(0, 200));
+    }
 
     return Response.json({ success: true, concepts });
+
   } catch (err) {
-    console.error("Concept generation error:", err);
+    console.error("Generation error:", err.message);
     return Response.json(
       { success: false, error: err.message },
       { status: 500 }
