@@ -72,7 +72,8 @@ Return ONLY a raw JSON array of exactly 3 objects. No markdown, no backticks:
         ]
       : [{ type: "text", text: prompt }];
 
-    const apiKey = process.env.ANTHROPIC_API_KEY;
+    const apiKey = process.env.ANTHROPIC_API_KEY || process.env.anthropic_api_key;
+console.log("ENV KEYS AVAILABLE:", Object.keys(process.env).filter(k => k.includes('ANTHRO')));
     
     if (!apiKey) {
       throw new Error("ANTHROPIC_API_KEY environment variable is not set");
