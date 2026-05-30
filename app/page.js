@@ -62,9 +62,9 @@ function TikTokMockup({ photo, concept, canvasRef: externalRef }) {
       if (concept.textTop) {
         const tl = wrap(concept.textTop, W-36, 12);
         const th = tl.length*18+14;
-        ctx.fillStyle="rgba(0,0,0,0.78)"; rr(12,32,W-24,th,8);
+        ctx.fillStyle="rgba(0,0,0,0.78)"; rr(12,90,W-24,th,8);
         ctx.fillStyle="#fff"; ctx.font="bold 12px sans-serif"; ctx.textAlign="center";
-        tl.forEach((l,i) => ctx.fillText(l, W/2, 32+14+i*18));
+        tl.forEach((l,i) => ctx.fillText(l, W/2, 90+14+i*18));
       }
 
       // CENTER text
@@ -79,7 +79,7 @@ function TikTokMockup({ photo, concept, canvasRef: externalRef }) {
       // BOTTOM — BLUE punchline
       if (concept.textBottom) {
         const bl = wrap(concept.textBottom, W-32, 13);
-        const bh = bl.length*20+16; const by = H-bh-75;
+        const bh = bl.length*20+16; const by = H-bh-160;
         ctx.fillStyle="#1d9bf0"; rr(14,by,W-28,bh,10);
         ctx.fillStyle="#fff"; ctx.font="bold 13px sans-serif"; ctx.textAlign="center";
         bl.forEach((l,i) => ctx.fillText(l, W/2, by+16+i*20));
@@ -177,9 +177,9 @@ function ConceptCard({ c, idx, photo }) {
 
       if (c.textTop) {
         const tl=wrap(c.textTop,W-120,52); const th=tl.length*72+56;
-        ctx.fillStyle="rgba(0,0,0,0.78)"; rr(40,100,W-80,th,24);
+        ctx.fillStyle="rgba(0,0,0,0.78)"; rr(40,280,W-80,th,24);
         ctx.fillStyle="#fff"; ctx.font="bold 52px sans-serif"; ctx.textAlign="center";
-        tl.forEach((l,i)=>ctx.fillText(l,W/2,100+56+i*72));
+        tl.forEach((l,i)=>ctx.fillText(l,W/2,280+56+i*72));
       }
       if (c.textPOV) {
         const pl=wrap(c.textPOV,W-120,68); const ph=pl.length*92+64; const py=H*0.38-ph/2;
@@ -188,7 +188,7 @@ function ConceptCard({ c, idx, photo }) {
         pl.forEach((l,i)=>ctx.fillText(l,W/2,py+70+i*92));
       }
       if (c.textBottom) {
-        const bl=wrap(c.textBottom,W-120,56); const bh=bl.length*80+60; const by=H-bh-220;
+        const bl=wrap(c.textBottom,W-120,56); const bh=bl.length*80+60; const by=H-bh-480;
         ctx.fillStyle="#1d9bf0"; rr(40,by,W-80,bh,28);
         ctx.fillStyle="#fff"; ctx.font="bold 56px sans-serif"; ctx.textAlign="center";
         bl.forEach((l,i)=>ctx.fillText(l,W/2,by+64+i*80));
